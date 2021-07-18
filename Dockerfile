@@ -1,4 +1,8 @@
-FROM debian:stretch-slim
+FROM debian:10.10-slim
+
+ENV EXPORTER_HOST="0.0.0.0"
+ENV EXPORTER_PORT="9167"
+ENV EXPORTER_SHELL_TEMPLATE="%s"
 
 RUN apt-get update \
     && apt-get install smartmontools -y --no-install-recommends \
@@ -6,5 +10,6 @@ RUN apt-get update \
 
 ADD bin/prom-smartctl-exporter /prom-smartctl-exporter
 
-EXPOSE 9167
-CMD ["/prom-smartctl-exporter"]
+EXPOSE ${EXPORTER_PORT}
+
+CMD ["/prom-smartctl-exporter", "-listen", ${EXPORTER_HOST}:${EXPORTER_PORT}, "-shell", ${EXPORTER_SHELL_TEMPLATE}]

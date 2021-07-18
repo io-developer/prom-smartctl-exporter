@@ -52,25 +52,17 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *Collector) Collect(ch chan<- prometheus.Metric) {
-	if desc, err := c.collect(ch); err != nil {
-		log.Printf("[ERROR] failed collecting metric %v: %v", desc, err)
-		ch <- prometheus.NewInvalidMetric(desc, err)
-		return
-	}
-}
-
-func (c *Collector) collect(ch chan<- prometheus.Metric) (*prometheus.Desc, error) {
 	if c.device == "" {
-		return nil, nil
+		return
 	}
 
 	out, err := c.cmd.Exec(fmt.Sprintf("smartctl -iA %s", c.device))
 	if err != nil {
 		log.Printf("[ERROR] smart log: \n%s\n", out)
-		return nil, err
+		return
 	}
-	smart := ParseSmart(string(out))
 
+	smart := ParseSmart(string(out))
 	labels := []string{
 		c.device,
 		smart.GetInfo("Device Model", "Model Family"),
@@ -88,6 +80,4 @@ func (c *Collector) collect(ch chan<- prometheus.Metric) (*prometheus.Desc, erro
 		float64(smart.GetAttr(190, 194).rawValue),
 		labels...,
 	)
-
-	return nil, nil
 }
