@@ -11,14 +11,18 @@ import (
 )
 
 var (
-	listenAddr  = flag.String("listen", ":9167", "address for exporter")
-	metricsPath = flag.String("path", "/metrics", "URL path for surfacing collected metrics")
+	listenAddr    = flag.String("listen", ":9167", "address for exporter")
+	metricsPath   = flag.String("path", "/metrics", "URL path for surfacing collected metrics")
+	shellTemplate = flag.String("shell", "%s", "Shell template for system commands")
 )
 
 func main() {
 	flag.Parse()
 
-	prometheus.MustRegister(exporter.New())
+	shell := exporter.NewShell()
+	shell.Template = *shellTemplate
+
+	prometheus.MustRegister(exporter.New(shell))
 
 	http.Handle(*metricsPath, promhttp.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

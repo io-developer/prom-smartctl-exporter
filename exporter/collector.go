@@ -1,20 +1,22 @@
 package exporter
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
+	"fmt"
 	"log"
-	"os/exec"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var _ prometheus.Collector = &Collector{}
 
 type Collector struct {
 	device       string
+	cmd          *Shell
 	PowerOnHours *prometheus.Desc
 	Temperature  *prometheus.Desc
 }
 
-func NewCollector(device string) *Collector {
+func NewCollector(device string, cmd *Shell) *Collector {
 	var (
 		labels = []string{
 			"device",
@@ -23,6 +25,7 @@ func NewCollector(device string) *Collector {
 	)
 	return &Collector{
 		device: device,
+		cmd:    cmd,
 		PowerOnHours: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "power_on_hours"),
 			"Power on hours",
@@ -61,7 +64,7 @@ func (c *Collector) collect(ch chan<- prometheus.Metric) (*prometheus.Desc, erro
 		return nil, nil
 	}
 
-	out, err := exec.Command("smartctl", "-iA", c.device).CombinedOutput()
+	out, err := c.cmd.Exec(fmt.Sprintf("smartctl -iA %s", c.device))
 	if err != nil {
 		log.Printf("[ERROR] smart log: \n%s\n", out)
 		return nil, err
