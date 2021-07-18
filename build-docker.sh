@@ -7,4 +7,4 @@ cd "$ROOT"
 export CGO_ENABLED=0
 go build -a -o "$ROOT/bin/prom-smartctl-exporter" -tags netgo
 
-docker build --tag prom-smartctl-exporter:latest .
+docker build --tag iodeveloper/prom-smartctl-exporter:latest .
