@@ -21,7 +21,13 @@ func main() {
 	shell := exporter.NewShell()
 	shell.Template = *shellTemplate
 
-	prometheus.MustRegister(exporter.New(shell))
+	exporter := exporter.NewExporter(shell)
+	err := exporter.Init()
+	if err != nil {
+		log.Fatalf("[ERROR] failed to init")
+	}
+
+	prometheus.MustRegister(exporter)
 
 	log.Printf("starting exporter on %q", *listenAddr)
 

@@ -27,13 +27,13 @@ func NewCollector(device string, cmd *Shell) *Collector {
 		device: device,
 		cmd:    cmd,
 		PowerOnHours: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "power_on_hours"),
+			prometheus.BuildFQName("", "", "smartctl_power_on_hours"),
 			"Power on hours",
 			labels,
 			nil,
 		),
 		Temperature: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "temperature"),
+			prometheus.BuildFQName("", "", "smartctl_temperature"),
 			"Temperature",
 			labels,
 			nil,

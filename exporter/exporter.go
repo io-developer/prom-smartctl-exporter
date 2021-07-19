@@ -1,52 +1,47 @@
 package exporter
 
 import (
-	"log"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	namespace = "smartctl"
-)
-
-// An Exporter is a Prometheus exporter for metrics.
-// It wraps all metrics collectors and provides a single global
-// exporter which can serve metrics.
-//
-// It implements the exporter.Collector interface in order to register
-// with Prometheus.
 type Exporter struct {
-	cmd *Shell
+	prometheus.Collector
+
+	cmd        *Shell
+	collectors []*Collector
 }
 
-var _ prometheus.Collector = &Exporter{}
-
-// New creates a new Exporter which collects metrics by creating a apcupsd
-// client using the input ClientFunc.
-func New(cmd *Shell) *Exporter {
+func NewExporter(cmd *Shell) *Exporter {
 	return &Exporter{
-		cmd: cmd,
+		cmd:        cmd,
+		collectors: make([]*Collector, 0),
 	}
 }
 
-// Describe sends all the descriptors of the collectors included to
-// the provided channel.
-func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
-	NewCollector("", e.cmd).Describe(ch)
-}
+func (e *Exporter) Init() error {
+	e.collectors = make([]*Collector, 0)
 
-// Collect sends the collected metrics from each of the collectors to
-// exporter.
-func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	out, err := e.cmd.Exec("lsblk -Snpo name")
-	if err != nil {
-		log.Printf("[ERROR] failed collecting metric %v: %v", out, err)
-		return
+	if err == nil {
+		devices := strings.Split(string(out), "\n")
+		for _, device := range devices {
+			collector := NewCollector(device, e.cmd)
+			e.collectors = append(e.collectors, collector)
+		}
 	}
-	devices := strings.Split(string(out), "\n")
-	for _, device := range devices {
-		NewCollector(device, e.cmd).Collect(ch)
+	return err
+}
+
+func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
+	for _, collector := range e.collectors {
+		collector.Describe(ch)
+	}
+}
+
+func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
+	for _, collector := range e.collectors {
+		collector.Collect(ch)
 	}
 }
