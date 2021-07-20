@@ -7,17 +7,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var AttrLabels = []string{
-	"id",
-	"name",
-	"is_prefailure",
-	"is_updated_online",
-	"is_performance",
-	"is_error_rate",
-	"is_event_count",
-	"is_auto_keep",
-}
-
 type Collector struct {
 	device       string
 	cmdShell     *CmdShell
@@ -34,6 +23,17 @@ func NewCollector(device string, cmd *CmdShell) *Collector {
 	constLabels := prometheus.Labels{
 		"device": "SomeDevice",
 		"model":  "SomeModel",
+	}
+
+	attrLabelNames := []string{
+		"id",
+		"name",
+		"is_prefailure",
+		"is_updated_online",
+		"is_performance",
+		"is_error_rate",
+		"is_event_count",
+		"is_auto_keep",
 	}
 
 	return &Collector{
@@ -62,7 +62,7 @@ func NewCollector(device string, cmd *CmdShell) *Collector {
 				Help:        "S.M.A.R.T. attribute value",
 				ConstLabels: constLabels,
 			},
-			AttrLabels,
+			attrLabelNames,
 		),
 		AttrWorst: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -72,7 +72,7 @@ func NewCollector(device string, cmd *CmdShell) *Collector {
 				Help:        "S.M.A.R.T. attribute worst",
 				ConstLabels: constLabels,
 			},
-			AttrLabels,
+			attrLabelNames,
 		),
 		AttrThresh: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -82,7 +82,7 @@ func NewCollector(device string, cmd *CmdShell) *Collector {
 				Help:        "S.M.A.R.T. attribute threshold",
 				ConstLabels: constLabels,
 			},
-			AttrLabels,
+			attrLabelNames,
 		),
 		AttrRaw: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -92,7 +92,7 @@ func NewCollector(device string, cmd *CmdShell) *Collector {
 				Help:        "S.M.A.R.T. attribute raw value",
 				ConstLabels: constLabels,
 			},
-			AttrLabels,
+			attrLabelNames,
 		),
 	}
 }
