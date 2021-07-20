@@ -5,7 +5,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/io-developer/prom-smartctl-exporter/exporter"
+	"github.com/io-developer/prom-smartctl-exporter/pkg/cmd"
+	"github.com/io-developer/prom-smartctl-exporter/pkg/exporter"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -18,7 +19,7 @@ var (
 func main() {
 	flag.Parse()
 
-	cmdShell := exporter.NewCmdShell()
+	cmdShell := cmd.NewShell()
 	cmdShell.Template = *shellTemplate
 
 	exporter := exporter.NewExporter(cmdShell)

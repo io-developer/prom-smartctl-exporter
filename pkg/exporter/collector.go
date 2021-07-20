@@ -4,12 +4,33 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/io-developer/prom-smartctl-exporter/pkg/cmd"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+type CollectorOpt struct {
+	Device string
+	Shell  *cmd.Shell
+}
+
+func (o CollectorOpt) GetConstLabels() prometheus.Labels {
+	out, err := o.Shell.Exec(fmt.Sprintf("smartctl -iA -l scttempsts --json=ou %s", o.Device))
+	if err != nil {
+		log.Printf("[ERROR] smart log: \n%s\n", out)
+		return prometheus.Labels{}
+	}
+
+	jsonStr := string(out)
+	fmt.Print(len(jsonStr))
+
+	return prometheus.Labels{
+		"device": "SomeDevice",
+		"model":  "SomeModel",
+	}
+}
+
 type Collector struct {
-	device       string
-	cmdShell     *CmdShell
+	opt          CollectorOpt
 	PowerOnHours prometheus.Gauge
 	Temperature  prometheus.Gauge
 	AttrValue    *prometheus.GaugeVec
@@ -18,13 +39,8 @@ type Collector struct {
 	AttrRaw      *prometheus.GaugeVec
 }
 
-func NewCollector(device string, cmd *CmdShell) *Collector {
-
-	constLabels := prometheus.Labels{
-		"device": "SomeDevice",
-		"model":  "SomeModel",
-	}
-
+func NewCollector(opt CollectorOpt) *Collector {
+	constLabels := opt.GetConstLabels()
 	attrLabelNames := []string{
 		"id",
 		"name",
@@ -35,10 +51,8 @@ func NewCollector(device string, cmd *CmdShell) *Collector {
 		"is_event_count",
 		"is_auto_keep",
 	}
-
 	return &Collector{
-		device:   device,
-		cmdShell: cmd,
+		opt: opt,
 
 		PowerOnHours: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace:   "",
@@ -107,11 +121,11 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *Collector) Collect(ch chan<- prometheus.Metric) {
-	if c.device == "" {
+	if c.opt.Device == "" {
 		return
 	}
 
-	out, err := c.cmdShell.Exec(fmt.Sprintf("smartctl -n standby -iA %s", c.device))
+	out, err := c.opt.Shell.Exec(fmt.Sprintf("smartctl -n standby -iA %s", c.opt.Device))
 	if err != nil {
 		log.Printf("[ERROR] smart log: \n%s\n", out)
 		return

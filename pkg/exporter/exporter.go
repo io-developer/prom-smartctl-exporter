@@ -1,19 +1,20 @@
 package exporter
 
 import (
+	"github.com/io-developer/prom-smartctl-exporter/pkg/cmd"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 type Exporter struct {
 	prometheus.Collector
 
-	cmdShell   *CmdShell
+	shell      *cmd.Shell
 	collectors []*Collector
 }
 
-func NewExporter(cmdShell *CmdShell) *Exporter {
+func NewExporter(shell *cmd.Shell) *Exporter {
 	return &Exporter{
-		cmdShell:   cmdShell,
+		shell:      shell,
 		collectors: make([]*Collector, 0),
 	}
 }
@@ -24,9 +25,14 @@ func (e *Exporter) Init() error {
 	// out, err := e.cmdShell.Exec("lsblk -Snpo name")
 	// if err == nil {
 	// 	devices := strings.Split(string(out), "\n")
-	for _, device := range []string{"/dev/sda"} {
-		collector := NewCollector(device, e.cmdShell)
-		e.collectors = append(e.collectors, collector)
+	devices := []string{
+		"/dev/sda",
+	}
+	for _, device := range devices {
+		e.collectors = append(e.collectors, NewCollector(CollectorOpt{
+			Device: device,
+			Shell:  e.shell,
+		}))
 	}
 	// }
 	return nil //err
