@@ -7,87 +7,103 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var BaseLabels = []string{
-	"device",
-	"model",
-}
-
-var AttrLabels = append(
-	BaseLabels,
+var AttrLabels = []string{
 	"id",
 	"name",
-	"flag",
-	"flag_string",
-	"flag_prefailure",
-	"flag_updated_online",
-	"flag_performance",
-	"flag_error_rate",
-	"flag_event_count",
-	"flag_auto_keep",
-)
+	"is_prefailure",
+	"is_updated_online",
+	"is_performance",
+	"is_error_rate",
+	"is_event_count",
+	"is_auto_keep",
+}
 
 type Collector struct {
 	device       string
-	cmd          *Shell
-	PowerOnHours *prometheus.Desc
-	Temperature  *prometheus.Desc
-	AttrValue    *prometheus.Desc
-	AttrWorst    *prometheus.Desc
-	AttrThresh   *prometheus.Desc
-	AttrRaw      *prometheus.Desc
+	cmdShell     *CmdShell
+	PowerOnHours prometheus.Gauge
+	Temperature  prometheus.Gauge
+	AttrValue    *prometheus.GaugeVec
+	AttrWorst    *prometheus.GaugeVec
+	AttrThresh   *prometheus.GaugeVec
+	AttrRaw      *prometheus.GaugeVec
 }
 
-func NewCollector(device string, cmd *Shell) *Collector {
+func NewCollector(device string, cmd *CmdShell) *Collector {
+
+	constLabels := prometheus.Labels{
+		"device": "SomeDevice",
+		"model":  "SomeModel",
+	}
+
 	return &Collector{
-		device: device,
-		cmd:    cmd,
-		PowerOnHours: prometheus.NewDesc(
-			prometheus.BuildFQName("", "", "smartctl_power_on_hours"),
-			"Power on hours",
-			BaseLabels,
-			nil,
-		),
-		Temperature: prometheus.NewDesc(
-			prometheus.BuildFQName("", "", "smartctl_temperature"),
-			"Temperature",
-			BaseLabels,
-			nil,
-		),
-		AttrValue: prometheus.NewDesc(
-			prometheus.BuildFQName("", "", "smartctl_attr_value"),
-			"S.M.A.R.T. attribute value",
+		device:   device,
+		cmdShell: cmd,
+
+		PowerOnHours: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace:   "",
+			Subsystem:   "",
+			Name:        "smartctl_power_on_hours",
+			Help:        "Power on hours",
+			ConstLabels: constLabels,
+		}),
+		Temperature: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace:   "",
+			Subsystem:   "",
+			Name:        "smartctl_temperature",
+			Help:        "Temperature",
+			ConstLabels: constLabels,
+		}),
+		AttrValue: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace:   "",
+				Subsystem:   "",
+				Name:        "smartctl_attr_value",
+				Help:        "S.M.A.R.T. attribute value",
+				ConstLabels: constLabels,
+			},
 			AttrLabels,
-			nil,
 		),
-		AttrWorst: prometheus.NewDesc(
-			prometheus.BuildFQName("", "", "smartctl_attr_worst"),
-			"S.M.A.R.T. attribute worst",
+		AttrWorst: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace:   "",
+				Subsystem:   "",
+				Name:        "smartctl_attr_worst",
+				Help:        "S.M.A.R.T. attribute worst",
+				ConstLabels: constLabels,
+			},
 			AttrLabels,
-			nil,
 		),
-		AttrThresh: prometheus.NewDesc(
-			prometheus.BuildFQName("", "", "smartctl_attr_thresh"),
-			"S.M.A.R.T. attribute threshold",
+		AttrThresh: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace:   "",
+				Subsystem:   "",
+				Name:        "smartctl_attr_thresh",
+				Help:        "S.M.A.R.T. attribute threshold",
+				ConstLabels: constLabels,
+			},
 			AttrLabels,
-			nil,
 		),
-		AttrRaw: prometheus.NewDesc(
-			prometheus.BuildFQName("", "", "smartctl_attr_raw"),
-			"S.M.A.R.T. attribute raw value",
+		AttrRaw: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace:   "",
+				Subsystem:   "",
+				Name:        "smartctl_attr_raw",
+				Help:        "S.M.A.R.T. attribute raw value",
+				ConstLabels: constLabels,
+			},
 			AttrLabels,
-			nil,
 		),
 	}
 }
 
 func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
-	ds := []*prometheus.Desc{
-		c.PowerOnHours,
-		c.Temperature,
-	}
-	for _, d := range ds {
-		ch <- d
-	}
+	c.PowerOnHours.Describe(ch)
+	c.Temperature.Describe(ch)
+	c.AttrValue.Describe(ch)
+	c.AttrWorst.Describe(ch)
+	c.AttrThresh.Describe(ch)
+	c.AttrRaw.Describe(ch)
 }
 
 func (c *Collector) Collect(ch chan<- prometheus.Metric) {
@@ -95,67 +111,40 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 		return
 	}
 
-	out, err := c.cmd.Exec(fmt.Sprintf("smartctl -iA %s", c.device))
+	out, err := c.cmdShell.Exec(fmt.Sprintf("smartctl -n standby -iA %s", c.device))
 	if err != nil {
 		log.Printf("[ERROR] smart log: \n%s\n", out)
 		return
 	}
 
-	smart := ParseSmart(string(out))
+	smart := OldParseSmart(string(out))
 
-	baseLabels := []string{
-		c.device,
-		smart.GetInfo("Device Model", "Model Family"),
+	c.PowerOnHours.Set(float64(smart.GetAttr(9).rawValue))
+	c.PowerOnHours.Collect(ch)
+
+	c.Temperature.Set(float64(smart.GetAttr(190, 194).rawValue))
+	c.Temperature.Collect(ch)
+
+	attrLabels := prometheus.Labels{
+		"id":                "177",
+		"name":              "Wear_Leveling_Count",
+		"is_prefailure":     "true",
+		"is_updated_online": "false",
+		"is_performance":    "false",
+		"is_error_rate":     "false",
+		"is_event_count":    "true",
+		"is_auto_keep":      "false",
 	}
 
-	ch <- prometheus.MustNewConstMetric(
-		c.PowerOnHours,
-		prometheus.GaugeValue,
-		float64(smart.GetAttr(9).rawValue),
-		baseLabels...,
-	)
-	ch <- prometheus.MustNewConstMetric(
-		c.Temperature,
-		prometheus.GaugeValue,
-		float64(smart.GetAttr(190, 194).rawValue),
-		baseLabels...,
-	)
+	c.AttrValue.With(attrLabels).Set(float64(98))
+	c.AttrValue.Collect(ch)
 
-	attrLabels := append(
-		baseLabels,
-		"177",
-		"Wear_Leveling_Count",
-		"19",
-		"PO--C- ",
-		"1",
-		"0",
-		"0",
-		"0",
-		"1",
-		"0",
-	)
-	ch <- prometheus.MustNewConstMetric(
-		c.AttrValue,
-		prometheus.GaugeValue,
-		float64(98),
-		attrLabels...,
-	)
-	ch <- prometheus.MustNewConstMetric(
-		c.AttrWorst,
-		prometheus.GaugeValue,
-		float64(98),
-		attrLabels...,
-	)
-	ch <- prometheus.MustNewConstMetric(
-		c.AttrThresh,
-		prometheus.GaugeValue,
-		float64(0),
-		attrLabels...,
-	)
-	ch <- prometheus.MustNewConstMetric(
-		c.AttrRaw,
-		prometheus.GaugeValue,
-		float64(43),
-		attrLabels...,
-	)
+	c.AttrWorst.With(attrLabels).Set(float64(98))
+	c.AttrWorst.Collect(ch)
+
+	c.AttrThresh.With(attrLabels).Set(float64(0))
+	c.AttrThresh.Collect(ch)
+
+	c.AttrRaw.With(attrLabels).Set(float64(43))
+	c.AttrRaw.Collect(ch)
 }

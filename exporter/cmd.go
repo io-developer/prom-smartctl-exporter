@@ -6,19 +6,19 @@ import (
 	"os/exec"
 )
 
-type Shell struct {
+type CmdShell struct {
 	ShellPath string
 	Template  string
 }
 
-func NewShell() *Shell {
-	return &Shell{
+func NewCmdShell() *CmdShell {
+	return &CmdShell{
 		ShellPath: "/bin/sh",
 		Template:  "%s",
 	}
 }
 
-func (c *Shell) Exec(cmd string) ([]byte, error) {
+func (c *CmdShell) Exec(cmd string) ([]byte, error) {
 	finalCmd := fmt.Sprintf(c.Template, cmd)
 	out, err := exec.Command(c.ShellPath, "-c", finalCmd).CombinedOutput()
 	if err != nil {

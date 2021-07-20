@@ -6,12 +6,12 @@ import (
 	"strings"
 )
 
-type Smart struct {
+type OldSmart struct {
 	info  map[string]string
-	attrs map[int]*SmartAttr
+	attrs map[int]*OldSmartAttr
 }
 
-type SmartAttr struct {
+type OldSmartAttr struct {
 	id         int64
 	name       string
 	flag       int64
@@ -24,7 +24,7 @@ type SmartAttr struct {
 	rawValue   int64
 }
 
-func (s *Smart) GetInfo(name ...string) string {
+func (s *OldSmart) GetInfo(name ...string) string {
 	for _, k := range name {
 		val, ok := s.info[k]
 		if ok {
@@ -34,33 +34,33 @@ func (s *Smart) GetInfo(name ...string) string {
 	return ""
 }
 
-func (s *Smart) GetAttr(id ...int) *SmartAttr {
+func (s *OldSmart) GetAttr(id ...int) *OldSmartAttr {
 	for _, k := range id {
 		attr, ok := s.attrs[k]
 		if ok {
 			return attr
 		}
 	}
-	return &SmartAttr{}
+	return &OldSmartAttr{}
 }
 
-func ParseSmart(s string) *Smart {
+func OldParseSmart(s string) *OldSmart {
 	smartInfo := map[string]string{}
-	smartAttrs := map[int]*SmartAttr{}
+	smartAttrs := map[int]*OldSmartAttr{}
 	for _, section := range strings.Split(s, "\n\n") {
 		if strings.Index(section, "=== START OF INFORMATION SECTION ===") > -1 {
-			smartInfo = parseSmartInfo(section)
+			smartInfo = oldParseSmartInfo(section)
 		} else if strings.Index(section, "=== START OF READ SMART DATA SECTION ===") > -1 {
-			smartAttrs = parseSmartAttrs(section)
+			smartAttrs = oldParseSmartAttrs(section)
 		}
 	}
-	return &Smart{
+	return &OldSmart{
 		info:  smartInfo,
 		attrs: smartAttrs,
 	}
 }
 
-func parseSmartInfo(s string) map[string]string {
+func oldParseSmartInfo(s string) map[string]string {
 	info := make(map[string]string)
 	for _, line := range strings.Split(s, "\n") {
 		kv := strings.Split(line, ": ")
@@ -71,8 +71,8 @@ func parseSmartInfo(s string) map[string]string {
 	return info
 }
 
-func parseSmartAttrs(s string) map[int]*SmartAttr {
-	attrs := make(map[int]*SmartAttr)
+func oldParseSmartAttrs(s string) map[int]*OldSmartAttr {
+	attrs := make(map[int]*OldSmartAttr)
 	reSpaces := regexp.MustCompile(`\s+`)
 	lines := strings.Split(s, "\n")
 	for _, line := range lines {
@@ -82,7 +82,7 @@ func parseSmartAttrs(s string) map[int]*SmartAttr {
 			continue
 		}
 		id := parseInt(vals[0], 10)
-		attrs[int(id)] = &SmartAttr{
+		attrs[int(id)] = &OldSmartAttr{
 			id:         id,
 			name:       trim(vals[1]),
 			flag:       parseInt(vals[2], 16),

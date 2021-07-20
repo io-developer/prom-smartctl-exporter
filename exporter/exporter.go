@@ -1,21 +1,19 @@
 package exporter
 
 import (
-	"strings"
-
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 type Exporter struct {
 	prometheus.Collector
 
-	cmd        *Shell
+	cmdShell   *CmdShell
 	collectors []*Collector
 }
 
-func NewExporter(cmd *Shell) *Exporter {
+func NewExporter(cmdShell *CmdShell) *Exporter {
 	return &Exporter{
-		cmd:        cmd,
+		cmdShell:   cmdShell,
 		collectors: make([]*Collector, 0),
 	}
 }
@@ -23,15 +21,15 @@ func NewExporter(cmd *Shell) *Exporter {
 func (e *Exporter) Init() error {
 	e.collectors = make([]*Collector, 0)
 
-	out, err := e.cmd.Exec("lsblk -Snpo name")
-	if err == nil {
-		devices := strings.Split(string(out), "\n")
-		for _, device := range devices {
-			collector := NewCollector(device, e.cmd)
-			e.collectors = append(e.collectors, collector)
-		}
+	// out, err := e.cmdShell.Exec("lsblk -Snpo name")
+	// if err == nil {
+	// 	devices := strings.Split(string(out), "\n")
+	for _, device := range []string{"/dev/sda"} {
+		collector := NewCollector(device, e.cmdShell)
+		e.collectors = append(e.collectors, collector)
 	}
-	return err
+	// }
+	return nil //err
 }
 
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {

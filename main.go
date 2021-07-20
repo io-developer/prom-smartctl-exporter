@@ -18,10 +18,10 @@ var (
 func main() {
 	flag.Parse()
 
-	shell := exporter.NewShell()
-	shell.Template = *shellTemplate
+	cmdShell := exporter.NewCmdShell()
+	cmdShell.Template = *shellTemplate
 
-	exporter := exporter.NewExporter(shell)
+	exporter := exporter.NewExporter(cmdShell)
 	err := exporter.Init()
 	if err != nil {
 		log.Fatalf("[ERROR] failed to init")
