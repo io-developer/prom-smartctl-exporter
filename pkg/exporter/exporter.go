@@ -26,7 +26,7 @@ func (e *Exporter) Init() error {
 	// if err == nil {
 	// 	devices := strings.Split(string(out), "\n")
 	devices := []string{
-		"/dev/sda",
+		"/dev/sdf",
 	}
 	for _, device := range devices {
 		e.collectors = append(e.collectors, NewCollector(CollectorOpt{

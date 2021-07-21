@@ -14,17 +14,18 @@ type CollectorOpt struct {
 	Shell  *cmd.Shell
 }
 
-func (o CollectorOpt) GetConstLabels() prometheus.Labels {
-	out, err := o.Shell.Exec(fmt.Sprintf("smartctl -iA -l scttempsts --json=ou %s", o.Device))
-	if err != nil {
-		log.Printf("[ERROR] smart log: \n%s\n", out)
-		return prometheus.Labels{}
+func (o CollectorOpt) GetConstLabels() (labels prometheus.Labels) {
+	stdout, stderr, exitCode, err := o.Shell.Exec(
+		fmt.Sprintf("smartctl -i -l scttempsts --json=ou %s", o.Device),
+	)
+	if err != nil && exitCode != 0 && exitCode != 2 {
+		log.Printf("[ERROR] smartctl: %#v\n%#v\n", err, stderr)
+		return
 	}
-
-	resp, err := data.ParseSmartctlJson(out)
+	resp, err := data.ParseSmartctlJson(stdout)
 	if err != nil {
 		log.Printf("[ERROR] parse smartctl json: \n%v\n", err)
-		return prometheus.Labels{}
+		return
 	}
 
 	log.Print(resp)
@@ -131,13 +132,15 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 		return
 	}
 
-	out, err := c.opt.Shell.Exec(fmt.Sprintf("smartctl -n standby -iA %s", c.opt.Device))
-	if err != nil {
-		log.Printf("[ERROR] smart log: \n%s\n", out)
+	stdout, stderr, exitCode, err := c.opt.Shell.Exec(
+		fmt.Sprintf("smartctl -n standby -iA -l scttempsts %s", c.opt.Device),
+	)
+	if exitCode != 0 && exitCode != 2 {
+		log.Printf("[ERROR] smartctl: %#v\n%#v\n", err, stderr)
 		return
 	}
 
-	smart := OldParseSmart(string(out))
+	smart := OldParseSmart(string(stdout))
 
 	c.PowerOnHours.Set(float64(smart.GetAttr(9).rawValue))
 	c.PowerOnHours.Collect(ch)

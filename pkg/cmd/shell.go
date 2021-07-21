@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"os/exec"
@@ -18,13 +19,29 @@ func NewShell() *Shell {
 	}
 }
 
-func (c *Shell) Exec(cmd string) ([]byte, error) {
-	finalCmd := fmt.Sprintf(c.Template, cmd)
-	out, err := exec.Command(c.Path, "-c", finalCmd).CombinedOutput()
-	if err != nil {
-		log.Printf("[ERROR] failed exec \"%s\" (\"%s\"):\n%v\n%v\n", cmd, finalCmd, string(out), err)
-	} else {
-		log.Printf("[DEBUG] exec \"%s\" (\"%s\"):\n%v\n", cmd, finalCmd, string(out))
-	}
-	return out, err
+func (c *Shell) Exec(script string) (stdout []byte, stderr []byte, exitCode int, err error) {
+	finalCmd := fmt.Sprintf(c.Template, script)
+	cmd := exec.Command(c.Path, "-c", finalCmd)
+
+	stdoutBuf := bytes.Buffer{}
+	cmd.Stdout = &stdoutBuf
+
+	stderrBuf := bytes.Buffer{}
+	cmd.Stderr = &stderrBuf
+
+	err = cmd.Run()
+	exitCode = cmd.ProcessState.ExitCode()
+
+	stdout = stdoutBuf.Bytes()
+	stderr = stderrBuf.Bytes()
+
+	log.Printf(
+		"[DEBUG] exec \"%s\"\nexit code: %d\nerr: %v\nstderr: %v\nstdout: %v",
+		finalCmd,
+		exitCode,
+		err,
+		string(stderr),
+		string(stdout),
+	)
+	return
 }
