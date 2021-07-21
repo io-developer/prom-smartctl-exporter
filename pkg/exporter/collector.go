@@ -3,6 +3,7 @@ package exporter
 import (
 	"fmt"
 	"log"
+	"strconv"
 
 	"github.com/io-developer/prom-smartctl-exporter/pkg/cmd"
 	"github.com/io-developer/prom-smartctl-exporter/pkg/data"
@@ -10,44 +11,51 @@ import (
 )
 
 type CollectorOpt struct {
-	Device string
-	Shell  *cmd.Shell
+	Device        string
+	Shell         *cmd.Shell
+	SkipIfStandby bool
 }
 
-func (o CollectorOpt) GetConstLabels() (labels prometheus.Labels) {
+func (o CollectorOpt) getConstLabels() (labels prometheus.Labels) {
+	resp, _, err := o.getSmartctlResponse("-i -l scttempsts")
+	if err != nil {
+		return
+	}
+	return prometheus.Labels{
+		"model":    resp.ModelName,
+		"serial":   resp.SerialNumber,
+		"firmware": resp.FirmwareVersion,
+	}
+}
+
+func (o CollectorOpt) getSmartctlResponse(cmdOpts string) (resp data.Response, exitCode int, err error) {
 	stdout, stderr, exitCode, err := o.Shell.Exec(
-		fmt.Sprintf("smartctl -i -l scttempsts --json=ou %s", o.Device),
+		fmt.Sprintf("smartctl %s --json=ou %s", cmdOpts, o.Device),
 	)
 	if err != nil && exitCode != 0 && exitCode != 2 {
 		log.Printf("[ERROR] smartctl: %#v\n%#v\n", err, stderr)
 		return
 	}
-	resp, err := data.ParseSmartctlJson(stdout)
+	resp, err = data.ParseSmartctlJson(stdout)
 	if err != nil {
-		log.Printf("[ERROR] parse smartctl json: \n%v\n", err)
-		return
+		log.Printf("[ERROR] smartctl parse: %#v\n", err)
 	}
-
-	log.Print(resp)
-
-	return prometheus.Labels{
-		"device": "SomeDevice",
-		"model":  "SomeModel",
-	}
+	return
 }
 
 type Collector struct {
-	opt          CollectorOpt
-	PowerOnHours prometheus.Gauge
-	Temperature  prometheus.Gauge
-	AttrValue    *prometheus.GaugeVec
-	AttrWorst    *prometheus.GaugeVec
-	AttrThresh   *prometheus.GaugeVec
-	AttrRaw      *prometheus.GaugeVec
+	opt             CollectorOpt
+	hasFirstCollect bool
+	PowerOnHours    prometheus.Gauge
+	Temperature     prometheus.Gauge
+	AttrValue       *prometheus.GaugeVec
+	AttrWorst       *prometheus.GaugeVec
+	AttrThresh      *prometheus.GaugeVec
+	AttrRaw         *prometheus.GaugeVec
 }
 
 func NewCollector(opt CollectorOpt) *Collector {
-	constLabels := opt.GetConstLabels()
+	constLabels := opt.getConstLabels()
 	attrLabelNames := []string{
 		"id",
 		"name",
@@ -132,42 +140,53 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 		return
 	}
 
-	stdout, stderr, exitCode, err := c.opt.Shell.Exec(
-		fmt.Sprintf("smartctl -n standby -iA -l scttempsts %s", c.opt.Device),
-	)
-	if exitCode != 0 && exitCode != 2 {
-		log.Printf("[ERROR] smartctl: %#v\n%#v\n", err, stderr)
+	cmdOpts := "-n standby,7 -iA -l scttempsts"
+	if c.hasFirstCollect && c.opt.SkipIfStandby {
+		cmdOpts = "-n standby,7 -iA -l scttempsts"
+	}
+	c.hasFirstCollect = true
+
+	resp, exitCode, err := c.opt.getSmartctlResponse(cmdOpts)
+	if exitCode == 7 {
+		resp, _, err = c.opt.getSmartctlResponse("-i -l scttempsts")
+	}
+	if err != nil {
 		return
 	}
 
-	smart := OldParseSmart(string(stdout))
+	c.updateMetrics(resp)
 
-	c.PowerOnHours.Set(float64(smart.GetAttr(9).rawValue))
 	c.PowerOnHours.Collect(ch)
-
-	c.Temperature.Set(float64(smart.GetAttr(190, 194).rawValue))
 	c.Temperature.Collect(ch)
-
-	attrLabels := prometheus.Labels{
-		"id":                "177",
-		"name":              "Wear_Leveling_Count",
-		"is_prefailure":     "true",
-		"is_updated_online": "false",
-		"is_performance":    "false",
-		"is_error_rate":     "false",
-		"is_event_count":    "true",
-		"is_auto_keep":      "false",
-	}
-
-	c.AttrValue.With(attrLabels).Set(float64(98))
 	c.AttrValue.Collect(ch)
-
-	c.AttrWorst.With(attrLabels).Set(float64(98))
 	c.AttrWorst.Collect(ch)
-
-	c.AttrThresh.With(attrLabels).Set(float64(0))
 	c.AttrThresh.Collect(ch)
-
-	c.AttrRaw.With(attrLabels).Set(float64(43))
 	c.AttrRaw.Collect(ch)
+}
+
+func (c *Collector) updateMetrics(resp data.Response) {
+	if resp.PowerOnTime.Hours != 0 {
+		c.PowerOnHours.Set(float64(resp.PowerOnTime.Hours))
+	}
+	if resp.Temperature.Current != 0 {
+		c.Temperature.Set(float64(resp.Temperature.Current))
+	}
+	if resp.AtaSctStatus.DeviceState.String == "Active" {
+		for _, attr := range resp.AtaSmartSttributes.Table {
+			attrLabels := prometheus.Labels{
+				"id":                strconv.FormatInt(int64(attr.Id), 10),
+				"name":              attr.Name,
+				"is_prefailure":     strconv.FormatBool(attr.Flags.Prefailure),
+				"is_updated_online": strconv.FormatBool(attr.Flags.UpdatedOnline),
+				"is_performance":    strconv.FormatBool(attr.Flags.Performance),
+				"is_error_rate":     strconv.FormatBool(attr.Flags.ErrorRate),
+				"is_event_count":    strconv.FormatBool(attr.Flags.EventCount),
+				"is_auto_keep":      strconv.FormatBool(attr.Flags.AutoKeep),
+			}
+			c.AttrValue.With(attrLabels).Set(float64(attr.Value))
+			c.AttrWorst.With(attrLabels).Set(float64(attr.Worst))
+			c.AttrThresh.With(attrLabels).Set(float64(attr.Thresh))
+			c.AttrRaw.With(attrLabels).Set(float64(attr.Raw.Value))
+		}
+	}
 }

@@ -106,6 +106,5 @@ func ParseSmartctlJson(data []byte) (response Response, err error) {
 	debugJson, _ := json.MarshalIndent(response, "", "    ")
 	fmt.Print(string(debugJson))
 
-	fmt.Print("debug")
 	return
 }

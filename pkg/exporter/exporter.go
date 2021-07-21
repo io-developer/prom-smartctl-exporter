@@ -30,8 +30,9 @@ func (e *Exporter) Init() error {
 	}
 	for _, device := range devices {
 		e.collectors = append(e.collectors, NewCollector(CollectorOpt{
-			Device: device,
-			Shell:  e.shell,
+			Device:        device,
+			Shell:         e.shell,
+			SkipIfStandby: true,
 		}))
 	}
 	// }
