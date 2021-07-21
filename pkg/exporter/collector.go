@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/io-developer/prom-smartctl-exporter/pkg/cmd"
+	"github.com/io-developer/prom-smartctl-exporter/pkg/data"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -20,8 +21,13 @@ func (o CollectorOpt) GetConstLabels() prometheus.Labels {
 		return prometheus.Labels{}
 	}
 
-	jsonStr := string(out)
-	fmt.Print(len(jsonStr))
+	resp, err := data.ParseSmartctlJson(out)
+	if err != nil {
+		log.Printf("[ERROR] parse smartctl json: \n%v\n", err)
+		return prometheus.Labels{}
+	}
+
+	log.Print(resp)
 
 	return prometheus.Labels{
 		"device": "SomeDevice",
