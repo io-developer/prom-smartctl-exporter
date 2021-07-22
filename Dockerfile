@@ -1,4 +1,4 @@
-FROM debian:10.10-slim
+FROM ubuntu:20.10
 
 ENV EXPORTER_HOST="0.0.0.0"
 ENV EXPORTER_PORT="9167"
