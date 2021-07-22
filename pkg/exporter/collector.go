@@ -46,6 +46,7 @@ func (o CollectorOpt) getSmartctlResponse(cmdOpts string) (resp data.Response, e
 type Collector struct {
 	opt             CollectorOpt
 	hasFirstCollect bool
+	DeviceState     prometheus.Gauge
 	PowerOnHours    prometheus.Gauge
 	Temperature     prometheus.Gauge
 	AttrValue       *prometheus.GaugeVec
@@ -69,6 +70,13 @@ func NewCollector(opt CollectorOpt) *Collector {
 	return &Collector{
 		opt: opt,
 
+		DeviceState: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace:   "",
+			Subsystem:   "",
+			Name:        "smartctl_device_state",
+			Help:        "Device state (active, stand-by, sleep, idle)",
+			ConstLabels: constLabels,
+		}),
 		PowerOnHours: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace:   "",
 			Subsystem:   "",
@@ -127,8 +135,10 @@ func NewCollector(opt CollectorOpt) *Collector {
 }
 
 func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
+	c.DeviceState.Describe(ch)
 	c.PowerOnHours.Describe(ch)
 	c.Temperature.Describe(ch)
+
 	c.AttrValue.Describe(ch)
 	c.AttrWorst.Describe(ch)
 	c.AttrThresh.Describe(ch)
@@ -156,8 +166,10 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 
 	c.updateMetrics(resp)
 
+	c.DeviceState.Collect(ch)
 	c.PowerOnHours.Collect(ch)
 	c.Temperature.Collect(ch)
+
 	c.AttrValue.Collect(ch)
 	c.AttrWorst.Collect(ch)
 	c.AttrThresh.Collect(ch)
@@ -165,6 +177,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 }
 
 func (c *Collector) updateMetrics(resp data.Response) {
+	c.DeviceState.Set(float64(resp.AtaSctStatus.DeviceState.Value))
 	if resp.PowerOnTime.Hours != 0 {
 		c.PowerOnHours.Set(float64(resp.PowerOnTime.Hours))
 	}
