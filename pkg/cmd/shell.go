@@ -36,12 +36,11 @@ func (c *Shell) Exec(script string) (stdout []byte, stderr []byte, exitCode int,
 	stderr = stderrBuf.Bytes()
 
 	log.Printf(
-		"[DEBUG] exec \"%s\"\nexit code: %d\nerr: %v\nstderr: %v\nstdout: %v",
+		"[DEBUG] exec \"%s\"\nexit code: %d\nerr: %v\nstderr: %v\n",
 		finalCmd,
 		exitCode,
 		err,
 		string(stderr),
-		string(stdout),
 	)
 	return
 }

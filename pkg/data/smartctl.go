@@ -2,7 +2,6 @@ package data
 
 import (
 	"encoding/json"
-	"fmt"
 )
 
 type Response struct {
@@ -95,16 +94,6 @@ type DeviceState struct {
 }
 
 func ParseSmartctlJson(data []byte) (response Response, err error) {
-	str := string(data)
-	fmt.Print(len(str))
-
 	err = json.Unmarshal(data, &response)
-	if err != nil {
-		return
-	}
-
-	debugJson, _ := json.MarshalIndent(response, "", "    ")
-	fmt.Print(string(debugJson))
-
 	return
 }
