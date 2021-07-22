@@ -1,6 +1,8 @@
 package exporter
 
 import (
+	"strings"
+
 	"github.com/io-developer/prom-smartctl-exporter/pkg/cmd"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -22,21 +24,21 @@ func NewExporter(shell *cmd.Shell) *Exporter {
 func (e *Exporter) Init() error {
 	e.collectors = make([]*Collector, 0)
 
-	// out, err := e.cmdShell.Exec("lsblk -Snpo name")
-	// if err == nil {
-	// 	devices := strings.Split(string(out), "\n")
-	devices := []string{
-		"/dev/sdf",
+	stdout, _, _, err := e.shell.Exec("lsblk -Snpo name")
+	if err == nil {
+		devices := strings.Split(string(stdout), "\n")
+		for _, device := range devices {
+			col := NewCollector(CollectorOpt{
+				Device:        device,
+				Shell:         e.shell,
+				SkipIfStandby: true,
+			})
+			if colErr := col.Validate(); colErr == nil {
+				e.collectors = append(e.collectors, col)
+			}
+		}
 	}
-	for _, device := range devices {
-		e.collectors = append(e.collectors, NewCollector(CollectorOpt{
-			Device:        device,
-			Shell:         e.shell,
-			SkipIfStandby: true,
-		}))
-	}
-	// }
-	return nil //err
+	return err
 }
 
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {

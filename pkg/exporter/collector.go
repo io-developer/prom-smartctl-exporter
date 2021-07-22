@@ -134,6 +134,11 @@ func NewCollector(opt CollectorOpt) *Collector {
 	}
 }
 
+func (c *Collector) Validate() error {
+	_, _, err := c.opt.getSmartctlResponse("-i")
+	return err
+}
+
 func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 	c.DeviceState.Describe(ch)
 	c.PowerOnHours.Describe(ch)
@@ -146,11 +151,7 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *Collector) Collect(ch chan<- prometheus.Metric) {
-	if c.opt.Device == "" {
-		return
-	}
-
-	cmdOpts := "-n standby,7 -iA -l scttempsts"
+	cmdOpts := "-iA -l scttempsts"
 	if c.hasFirstCollect && c.opt.SkipIfStandby {
 		cmdOpts = "-n standby,7 -iA -l scttempsts"
 	}
