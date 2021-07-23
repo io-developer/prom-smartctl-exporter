@@ -1,0 +1,21 @@
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+
+  build:
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+
+      - run: "docker -v"
+      - run: "echo ${{ secrets.DOCKER_TOKEN }} | docker login -u iodeveloper --password-stdin"
+      - run: "./build-docker.sh"
+      - run: "docker push iodeveloper/prom-smartctl-exporter:latest"
