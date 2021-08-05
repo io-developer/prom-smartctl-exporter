@@ -1,54 +1,89 @@
 package exporter
 
 import (
+	"log"
 	"strings"
+	"time"
 
 	"github.com/io-developer/prom-smartctl-exporter/pkg/cmd"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-type Exporter struct {
-	prometheus.Collector
+const MIN_DEVICE_LEN = 5
 
-	shell      *cmd.Shell
+type ExporterOpt struct {
+	Shell          *cmd.Shell
+	RescanInterval time.Duration
+}
+
+type Exporter struct {
+	opt        ExporterOpt
 	collectors []*Collector
 }
 
-func NewExporter(shell *cmd.Shell) *Exporter {
+func NewExporter(opt ExporterOpt) *Exporter {
 	return &Exporter{
-		shell:      shell,
+		opt:        opt,
 		collectors: make([]*Collector, 0),
 	}
 }
 
-func (e *Exporter) Init() error {
-	e.collectors = make([]*Collector, 0)
+func (e *Exporter) Start() (err error) {
+	for {
+		log.Printf("Device re-scanning..\n")
+		err = e.rescan()
+		if err != nil {
+			return
+		}
+		log.Printf("Device collectors registered: %d\n", len(e.collectors))
 
-	stdout, _, _, err := e.shell.Exec("lsblk -Snpo name")
-	if err == nil {
-		devices := strings.Split(string(stdout), "\n")
-		for _, device := range devices {
-			col := NewCollector(CollectorOpt{
-				Device:        device,
-				Shell:         e.shell,
-				SkipIfStandby: true,
-			})
-			if colErr := col.Validate(); colErr == nil {
-				e.collectors = append(e.collectors, col)
-			}
+		log.Printf("Device re-scanning wait for %.0f sec ...\n", e.opt.RescanInterval.Seconds())
+		time.Sleep(e.opt.RescanInterval)
+	}
+}
+
+func (e *Exporter) rescan() (err error) {
+	devs, err := e.scanDevs()
+	if err != nil {
+		return
+	}
+	oldCollectors := e.collectors
+	e.collectors = e.makeCollectors(devs)
+	for _, col := range oldCollectors {
+		prometheus.Unregister(col)
+	}
+	for _, col := range e.collectors {
+		prometheus.MustRegister(col)
+	}
+	return
+}
+
+func (e *Exporter) scanDevs() (devs []string, err error) {
+	stdout, _, _, err := e.opt.Shell.Exec("lsblk -Snpo name")
+	if err != nil {
+		return
+	}
+	rows := strings.Split(string(stdout), "\n")
+	devs = make([]string, 0, len(rows))
+	for _, row := range rows {
+		if len(row) >= MIN_DEVICE_LEN {
+			devs = append(devs, row)
 		}
 	}
-	return err
+	return
 }
 
-func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
-	for _, collector := range e.collectors {
-		collector.Describe(ch)
+func (e *Exporter) makeCollectors(devs []string) []*Collector {
+	cols := make([]*Collector, 0, len(devs))
+	for _, dev := range devs {
+		col := NewCollector(CollectorOpt{
+			Device:        dev,
+			Shell:         e.opt.Shell,
+			SkipIfStandby: true,
+		})
+		if colErr := col.Validate(); colErr == nil {
+			cols = append(cols, col)
+		}
 	}
-}
-
-func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-	for _, collector := range e.collectors {
-		collector.Collect(ch)
-	}
+	return cols
 }

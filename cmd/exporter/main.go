@@ -4,16 +4,17 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/io-developer/prom-smartctl-exporter/pkg/cmd"
 	"github.com/io-developer/prom-smartctl-exporter/pkg/exporter"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
-	listenAddr    = flag.String("listen", ":9167", "address for exporter")
-	shellTemplate = flag.String("shell", "%s", "Shell template for system commands")
+	listenAddr     = flag.String("listen", ":9167", "address for exporter")
+	shellTemplate  = flag.String("shell", "%s", "Shell template for system commands")
+	rescanInterval = flag.Duration("rescan", 300*time.Second, "Full device re-scan interval")
 )
 
 func main() {
@@ -22,13 +23,18 @@ func main() {
 	cmdShell := cmd.NewShell()
 	cmdShell.Template = *shellTemplate
 
-	exporter := exporter.NewExporter(cmdShell)
-	err := exporter.Init()
-	if err != nil {
-		log.Fatalf("[ERROR] failed to init")
-	}
+	exporter := exporter.NewExporter(exporter.ExporterOpt{
+		Shell:          cmdShell,
+		RescanInterval: *rescanInterval,
+	})
 
-	prometheus.MustRegister(exporter)
+	go func() {
+		err := exporter.Start()
+		if err != nil {
+			log.Fatalf("[ERROR] exporter error\n")
+			panic(err)
+		}
+	}()
 
 	log.Printf("starting exporter on %q", *listenAddr)
 
